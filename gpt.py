@@ -83,7 +83,16 @@ class MultiHeadAttention(nn.Module):
     self.heads = nn.ModuleList([head(head_size)for _ in range(num_head)])
   def forward(self,x):
     return torch.cat([h(x) for h in self.heads],dim=-1)
-  
+# --- Feedforward ---
+class FeedForward(nn.Module):
+  def __init__(self,n_embd):
+    super().__init__()
+    self.net = nn.Sequential(
+        nn.Linear(n_embd,n_embd),
+        nn.ReLU()
+    )
+  def forward(self,x):
+    return self.net(x)
     
 # --- Model Definition ---
 class gpt(nn.Module):
@@ -93,6 +102,7 @@ class gpt(nn.Module):
     self.positional_embeding_table = nn.Embedding(block_size,n_embd)
     self.sahead = MultiHeadAttention(num_head,head_size)
     self.lm_head = nn.Linear(n_embd,vocab_size)
+    self.ffn = FeedForward(n_embd)
    
   def forward(self,idx,target=None):
     B , T = idx.shape
@@ -100,6 +110,7 @@ class gpt(nn.Module):
     pos_embd = self.positional_embeding_table(torch.arange(T,device=device))#(T,C)
     x = token_embd + pos_embd
     x = self.sahead(x)
+    x = self.ffn(x)
     logits = self.lm_head(x)#(B,T,vocab_size)
 
     if target is None:
