@@ -34,7 +34,8 @@ val_iter = 100
 max_iter = 5
 n_embd = 32
 head_size = 16 
-num_head = 4
+n_head = 4
+
 # --- Data Batching Function ---
 def get_batch(split):
   data = train_data if split=="train" else val_data
@@ -78,11 +79,14 @@ class head(nn.Module):
 
 # ---Multi Head Attention ---
 class MultiHeadAttention(nn.Module):
-  def __init__(self,num_head,head_size):
+  def __init__(self,n_head,head_size):
     super().__init__()
-    self.heads = nn.ModuleList([head(head_size)for _ in range(num_head)])
+    self.heads = nn.ModuleList([head(head_size)for _ in range(n_head)])
+    self.proj = nn.Linear(n_embd,n_embd) # n_emed = head_size * n_head
   def forward(self,x):
-    return torch.cat([h(x) for h in self.heads],dim=-1)
+    out = torch.cat([h(x) for h in self.heads],dim=-1)
+    out = self.proj(out)
+    return out 
 # --- Feedforward ---
 class FeedForward(nn.Module):
   def __init__(self,n_embd):
@@ -93,15 +97,28 @@ class FeedForward(nn.Module):
     )
   def forward(self,x):
     return self.net(x)
-    
+#--- block ---
+class Block(nn.Module):
+  def __init__(self,n_embd,n_head) -> None:
+    super().__init__()
+    head_size = n_embd // n_head
+    self.sahead = MultiHeadAttention(n_head,head_size)
+    self.ffn = FeedForward(n_embd)
+  def forward(self,x):
+    x = x+ self.sahead(x)
+    x = x+ self.ffn(x)
+    return x    
 # --- Model Definition ---
 class gpt(nn.Module):
   def __init__(self,vocab_size):
     super().__init__()
     self.token_embedding_table = nn.Embedding(vocab_size,n_embd)
     self.positional_embeding_table = nn.Embedding(block_size,n_embd)
-    self.sahead = MultiHeadAttention(num_head,head_size)
-    self.lm_head = nn.Linear(n_embd,vocab_size)
+    self.blocks = nn.Sequential(
+        Block(n_embd,n_head),
+        Block(n_embd,n_head),
+        Block(n_embd,n_head),
+    )
     self.ffn = FeedForward(n_embd)
    
   def forward(self,idx,target=None):
