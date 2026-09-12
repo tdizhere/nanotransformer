@@ -34,6 +34,7 @@ val_iter = 100
 max_iter = 5
 n_embd = 32
 head_size = 16 
+num_head = 4
 # --- Data Batching Function ---
 def get_batch(split):
   data = train_data if split=="train" else val_data
@@ -55,6 +56,7 @@ def estimate_loss():
     out[split]=losses.mean()
   model.train()
   return out
+
 # ---Head Definition ---
 class head(nn.Module):
   def __init__(self,head_size):
@@ -74,6 +76,13 @@ class head(nn.Module):
     out = wei @ v
     return out
 
+# ---Multi Head Attention ---
+class MultiHeadAttention(nn.Module):
+  def __init__(self,num_head,head_size):
+    super().__init__()
+    self.heads = nn.ModuleList([head(head_size)for _ in range(num_head)])
+  def forward(self,x):
+    return torch.cat([h(x) for h in self.heads],dim=-1)
   
     
 # --- Model Definition ---
@@ -82,6 +91,7 @@ class gpt(nn.Module):
     super().__init__()
     self.token_embedding_table = nn.Embedding(vocab_size,n_embd)
     self.positional_embeding_table = nn.Embedding(block_size,n_embd)
+    self.sahead = MultiHeadAttention(num_head,head_size)
     self.lm_head = nn.Linear(n_embd,vocab_size)
    
   def forward(self,idx,target=None):
@@ -89,6 +99,7 @@ class gpt(nn.Module):
     token_embd = self.token_embedding_table(idx) # (B, T, C)
     pos_embd = self.positional_embeding_table(torch.arange(T,device=device))#(T,C)
     x = token_embd + pos_embd
+    x = self.sahead(x)
     logits = self.lm_head(x)#(B,T,vocab_size)
 
     if target is None:
