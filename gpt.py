@@ -27,16 +27,15 @@ train_data = input_tensor[:n]
 val_data = input_tensor[n:]
 
 # --- Hyperparameters ---
-batch_size = 32
-block_size = 8
-learning_rate = 1e-2 # tired 1e-5 , 3e-5
-val_iter = 100
-max_iter = 5
-n_embd = 32
-head_size = 16 
-n_head = 4
-n_layer = 4
-dropout = 0.2
+batch_size = 128 # how many independent sequences will we process in parallel
+block_size = 256 #how many tokens will we process in parallel
+learning_rate = 1e-4 # tired 1e-5 , 3e-5 
+val_iter = 300 # how many times to validate
+max_iter = 5000 # how many times to train
+n_embd = 384 # how many hidden units
+n_head = 6 #number of heads 
+n_layer = 6 #how many layer of blocks 
+dropout = 0.4 #how much to drop out 
 # --- Data Batching Function ---
 def get_batch(split):
   data = train_data if split=="train" else val_data
@@ -73,7 +72,7 @@ class head(nn.Module):
     k = self.key(x)
     q = self.Query(x)
     v = self.Value(x)
-    wei = q @ k.transpose(-2,-1)*C**-0.5 #(b,t,16)@(b,16,t)==(b,t,t)
+    wei = q @ k.transpose(-2, -1) * k.shape[-1]**-0.5 #(b,t,16)@(b,16,t)==(b,t,t)
     wei = wei.masked_fill(self.tril[:T,:T] == 0 , float('-inf'))#masking future tokens
     wei = F.softmax(wei,dim=-1)
     wei = self.dropout(wei)
@@ -171,15 +170,15 @@ optimizer = torch.optim.AdamW(model.parameters(), lr=learning_rate)
 
 # Training loop
 for steps in range(max_iter):
-  if steps%100==0:
+  if steps%500==0:
     losses = estimate_loss()
     print(f"Step {steps}: train loss = {losses['train']} ,val loss  = {losses['val']}")
   xb, yb = get_batch('train')
-  logits , loss = model(xb,yb) # Corrected: Use 'model' here
+  logits , loss = model(xb,yb) 
   optimizer.zero_grad(set_to_none=True)
   loss.backward()
   optimizer.step()
 
 #generation after training
 context = torch.zeros((1, 1), dtype=torch.long, device=device)
-print(decoder(model.generate(context, max_new_token=500)[0].tolist())) # Corrected: Use 'model' here
+print(decoder(model.generate(context, max_new_token=500)[0].tolist())) 
