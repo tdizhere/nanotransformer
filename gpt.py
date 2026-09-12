@@ -35,7 +35,8 @@ max_iter = 5
 n_embd = 32
 head_size = 16 
 n_head = 4
-
+n_layer = 4
+dropout = 0.2
 # --- Data Batching Function ---
 def get_batch(split):
   data = train_data if split=="train" else val_data
@@ -66,6 +67,7 @@ class head(nn.Module):
     self.Query = nn.Linear(n_embd,head_size,bias=False)#(b,t,16)
     self.Value = nn.Linear(n_embd,head_size,bias=False)#(b,t,16)
     self.register_buffer('tril',torch.tril(torch.ones(block_size,block_size)))
+    self.dropout =  nn.Dropout(dropout)
   def forward(self,x):
     B , T , C = x.shape
     k = self.key(x)
@@ -74,6 +76,7 @@ class head(nn.Module):
     wei = q @ k.transpose(-2,-1)*C**-0.5 #(b,t,16)@(b,16,t)==(b,t,t)
     wei = wei.masked_fill(self.tril[:T,:T] == 0 , float('-inf'))#masking future tokens
     wei = F.softmax(wei,dim=-1)
+    wei = self.dropout(wei)
     out = wei @ v
     return out
 
@@ -92,8 +95,10 @@ class FeedForward(nn.Module):
   def __init__(self,n_embd):
     super().__init__()
     self.net = nn.Sequential(
-        nn.Linear(n_embd,n_embd),
-        nn.ReLU()
+        nn.Linear(n_embd,4*n_embd),
+        nn.ReLU(),
+        nn.Linear(4*n_embd,n_embd),
+        nn.Dropout(dropout)
     )
   def forward(self,x):
     return self.net(x)
@@ -104,9 +109,11 @@ class Block(nn.Module):
     head_size = n_embd // n_head
     self.sahead = MultiHeadAttention(n_head,head_size)
     self.ffn = FeedForward(n_embd)
+    self.ln1 = nn.LayerNorm(n_embd)
+    self.ln2 = nn.LayerNorm(n_embd)
   def forward(self,x):
-    x = x+ self.sahead(x)
-    x = x+ self.ffn(x)
+    x = x+ self.sahead(self.ln1(x))
+    x = x+ self.ffn(self.ln2(x))
     return x    
 # --- Model Definition ---
 class gpt(nn.Module):
@@ -114,20 +121,17 @@ class gpt(nn.Module):
     super().__init__()
     self.token_embedding_table = nn.Embedding(vocab_size,n_embd)
     self.positional_embeding_table = nn.Embedding(block_size,n_embd)
-    self.blocks = nn.Sequential(
-        Block(n_embd,n_head),
-        Block(n_embd,n_head),
-        Block(n_embd,n_head),
-    )
-    self.ffn = FeedForward(n_embd)
+    self.blocks = nn.Sequential(*[Block(n_embd,n_head)for _ in range(n_layer)])
+    self.lm_head = nn.Linear(n_embd,vocab_size)
+    self.ln1 = nn.LayerNorm(n_embd)
    
   def forward(self,idx,target=None):
     B , T = idx.shape
     token_embd = self.token_embedding_table(idx) # (B, T, C)
     pos_embd = self.positional_embeding_table(torch.arange(T,device=device))#(T,C)
     x = token_embd + pos_embd
-    x = self.sahead(x)
-    x = self.ffn(x)
+    x = self.blocks(x)
+    x = self.ln1(x)
     logits = self.lm_head(x)#(B,T,vocab_size)
 
     if target is None:
