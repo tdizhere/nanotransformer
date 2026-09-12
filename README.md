@@ -771,39 +771,7 @@ The modular implementation is intentionally compact. Its main limitations are:
 
 These limitations do not prevent the project from demonstrating the core concepts. They should be stated in any formal report or publication.
 
-## 17. Experimental Reporting Template
-
-Use the following template for each experiment:
-
-~~~text
-Experiment name:
-Date:
-Model:
-Dataset:
-Python version:
-PyTorch version:
-Device:
-GPU model:
-Batch size:
-Block size:
-Embedding size:
-Number of attention heads:
-Number of transformer blocks:
-Dropout:
-Learning rate:
-Training iterations:
-Benchmark steps:
-Seconds per step:
-Estimated total time:
-Actual total time:
-Final training loss:
-Validation loss:
-Generated sample:
-Notes:
-~~~
-
-If validation has not been implemented, write Not measured rather than estimating it.
-
+## 17. FUTURE PLAN TO CONVERT IT INTO LOOP TRANSFORMER LIKE GPT 6 ASTRA
 ## 18. Interpretation of Results
 
 The bigram model should be treated as a baseline. It can learn local character frequencies and common transitions, but it cannot directly use a long context.
